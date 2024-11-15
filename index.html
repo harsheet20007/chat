@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Group Chat</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #e5ddd5; font-family: Arial, sans-serif; }
+        #app { width: 100%; max-width: 1200px; height: 90vh; display: flex; border-radius: 10px; overflow: hidden; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2); }
+        #landing { width: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #landing button { margin: 10px; padding: 15px; background: #075E54; color: white; border: none; cursor: pointer; font-size: 18px; }
+        #chatContainer { display: none; flex: 1; flex-direction: column; background-size: cover; position: relative; }
+        #chatHeader { background: #075E54; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+        #chatMessages { flex: 1; overflow-y: auto; padding: 10px; }
+        .message { background: #dcf8c6; padding: 10px; margin: 10px 0; border-radius: 8px; }
+        #chatInputContainer { display: flex; align-items: center; padding: 10px; background: #f0f0f0; }
+        #chatInput { flex: 1; padding: 10px; }
+        #sendBtn { margin-left: 10px; cursor: pointer; }
+        .qr-container { display: none; justify-content: center; align-items: center; }
+        #qrCanvas { display: block; }
+        #qrScanner { width: 100%; height: auto; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Landing Page -->
+        <div id="landing">
+            <button onclick="createGroup()">Create Group</button>
+            <button onclick="showJoinOptions()">Join Group</button>
+        </div>
+
+        <!-- Chat Interface -->
+        <div id="chatContainer">
+            <div id="chatHeader">
+                <h2 id="groupName">Group Chat</h2>
+                <button onclick="leaveGroup()">Leave</button>
+            </div>
+            <div id="chatMessages"></div>
+            <div id="chatInputContainer">
+                <input type="text" id="chatInput" placeholder="Type a message...">
+                <button id="sendBtn" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+
+        <!-- QR Scanner Container -->
+        <div class="qr-container" id="qrScannerContainer">
+            <video id="qrScanner"></video>
+        </div>
+    </div>
+
+    <!-- Firebase CDN -->
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode/minified/html5-qrcode.min.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCNyZAmw3D8aCqNOHOw0f3YKtZWNatauN8",
+      authDomain: "hello-4105a.firebaseapp.com",
+      databaseURL: "https://hello-4105a-default-rtdb.firebaseio.com",
+      projectId: "hello-4105a",
+      storageBucket: "hello-4105a.appspot.com",
+      messagingSenderId: "978669199403",
+      appId: "1:978669199403:web:6c20e3dbaf815bba890a6e",
+      measurementId: "G-2TGPP3E88X",
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        let groupId;
+        let chatInput = document.getElementById('chatInput');
+
+        function createGroup() {
+            groupId = Math.random().toString(36).substring(7);
+            alert(`Group created! Share this link: ${window.location.href}?group=${groupId}`);
+            startChat();
+        }
+
+        function showJoinOptions() {
+            const link = prompt("Enter group link:");
+            if (link) {
+                const groupParam = new URLSearchParams(link).get('group');
+                if (groupParam) {
+                    groupId = groupParam;
+                    startChat();
+                }
+            } else {
+                showQRScanner();
+            }
+        }
+
+        function startChat() {
+            document.getElementById('landing').style.display = 'none';
+            document.getElementById('chatContainer').style.display = 'flex';
+            loadMessages();
+        }
+
+        function loadMessages() {
+            db.collection('groups').doc(groupId).collection('messages').orderBy('timestamp')
+                .onSnapshot(snapshot => {
+                    const chatMessages = document.getElementById('chatMessages');
+                    chatMessages.innerHTML = '';
+                    snapshot.forEach(doc => {
+                        const msgDiv = document.createElement('div');
+                        msgDiv.className = 'message';
+                        msgDiv.innerText = doc.data().text;
+                        chatMessages.appendChild(msgDiv);
+                    });
+                });
+        }
+
+        async function sendMessage() {
+            if (chatInput.value.trim()) {
+                await db.collection('groups').doc(groupId).collection('messages').add({
+                    text: chatInput.value,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                chatInput.value = '';
+            }
+        }
+
+        function leaveGroup() {
+            window.location.href = '/';
+        }
+
+        function showQRScanner() {
+            const qrContainer = document.getElementById('qrScannerContainer');
+            qrContainer.style.display = 'flex';
+            const html5QrCode = new Html5Qrcode("qrScanner");
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10 }, qrCodeMessage => {
+                html5QrCode.stop();
+                groupId = new URLSearchParams(qrCodeMessage).get('group');
+                startChat();
+            });
+        }
+    </script>
+</body>
+</html>
